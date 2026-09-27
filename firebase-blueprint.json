@@ -1,0 +1,93 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Squad member identity and profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "avatarColor": { "type": "string" },
+        "bgmiId": { "type": "string" },
+        "role": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "avatarColor", "createdAt"]
+    },
+    "Availability": {
+      "title": "Availability",
+      "description": "Player scheduled availability block",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userColor": { "type": "string" },
+        "date": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "status": { "type": "string", "enum": ["available", "maybe", "busy"] },
+        "preferredMaps": { "type": "array" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "userId", "userName", "date", "startTime", "endTime", "status", "createdAt", "updatedAt"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "Planned BGMI squad session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "hostUserId": { "type": "string" },
+        "hostUserName": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "mode": { "type": "string" },
+        "map": { "type": "string" },
+        "maxPlayers": { "type": "number" },
+        "notes": { "type": "string" },
+        "players": { "type": "array" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "hostUserId", "hostUserName", "title", "date", "startTime", "endTime", "mode", "map", "maxPlayers", "players", "createdAt"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Log of actions taken across the squad",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userColor": { "type": "string" },
+        "action": { "type": "string" },
+        "description": { "type": "string" },
+        "metadata": { "type": "object" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "userId", "userName", "action", "description", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Registered squad members"
+    },
+    "/availability/{availId}": {
+      "schema": "Availability",
+      "description": "Squad members availability slots with preferred maps"
+    },
+    "/sessions/{sessionId}": {
+      "schema": "Session",
+      "description": "Scheduled BGMI matches"
+    },
+    "/activity_log/{logId}": {
+      "schema": "ActivityLog",
+      "description": "Real-time squad change logs"
+    }
+  }
+}
