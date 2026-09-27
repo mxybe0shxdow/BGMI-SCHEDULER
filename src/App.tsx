@@ -28,6 +28,17 @@ import { SessionsList } from './components/SessionsList';
 import { ActivityLog } from './components/ActivityLog';
 import { MembersView } from './components/MembersView';
 import { DeploymentHelpModal } from './components/DeploymentHelpModal';
+import { AdminSettingsModal } from './components/AdminSettingsModal';
+import { ProfileSettingsModal } from './components/ProfileSettingsModal';
+import { UserAvatar } from './components/UserAvatar';
+import { PWAInstallBanner } from './components/PWAInstallBanner';
+import { OfflineIndicator } from './components/OfflineIndicator';
+import {
+  adminUpdateUser,
+  adminDeleteUser,
+  checkIsAdmin,
+  DEFAULT_ADMIN,
+} from './lib/dbService';
 import { getLocalDateString, getUserTimezoneName } from './utils/dateUtils';
 import {
   Calendar,
@@ -78,6 +89,9 @@ export default function App() {
   }>({});
 
   const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
+  const [showAdminModal, setShowAdminModal] = useState<boolean>(false);
+  const [adminInitialUser, setAdminInitialUser] = useState<SquadUser | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
 
   // Setup Firestore real-time listeners on mount
   useEffect(() => {
@@ -154,6 +168,40 @@ export default function App() {
   // Switch User Profile handler
   const handleSwitchUser = () => {
     setShowOnboarding(true);
+  };
+
+  // Save changes to current logged in user profile
+  const handleSaveProfileUpdates = async (updates: Partial<SquadUser>) => {
+    if (!currentUser) return;
+    const updatedUser: SquadUser = {
+      ...currentUser,
+      ...updates,
+    };
+    await createOrUpdateUser(updatedUser);
+    setCurrentUser(updatedUser);
+    localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(updatedUser));
+  };
+
+  // Admin: Update another user's data
+  const handleAdminUpdateUser = async (userId: string, updates: Partial<SquadUser>) => {
+    if (!currentUser) return;
+    await adminUpdateUser(userId, updates, currentUser);
+    if (currentUser.id === userId) {
+      const updated = { ...currentUser, ...updates };
+      setCurrentUser(updated);
+      localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(updated));
+    }
+  };
+
+  // Admin: Delete a user
+  const handleAdminDeleteUser = async (user: SquadUser) => {
+    if (!currentUser) return;
+    await adminDeleteUser(user, currentUser);
+    if (currentUser.id === user.id) {
+      localStorage.removeItem(LOCAL_USER_KEY);
+      setCurrentUser(null);
+      setShowOnboarding(true);
+    }
   };
 
   // Quick Open Add Availability
@@ -262,6 +310,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col selection:bg-emerald-500 selection:text-black">
+      {/* OFFLINE INDICATOR */}
+      <OfflineIndicator />
+
       {/* TOP HEADER */}
       <header className="sticky top-0 z-40 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
@@ -380,26 +431,47 @@ export default function App() {
             </button>
 
             {currentUser ? (
-              <button
-                onClick={handleSwitchUser}
-                title="Click to switch player profile"
-                className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-emerald-500/50 p-1.5 pr-3 rounded-xl transition cursor-pointer"
-              >
-                <span
-                  className="w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs text-white shadow"
-                  style={{ backgroundColor: currentUser.avatarColor || '#10B981' }}
+              <div className="flex items-center gap-2">
+                {checkIsAdmin(currentUser) && (
+                  <button
+                    onClick={() => {
+                      setAdminInitialUser(null);
+                      setShowAdminModal(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-400 font-black text-xs uppercase tracking-wider transition cursor-pointer shadow-lg shadow-red-500/10"
+                    title="Open Admin Control Panel (SHXDOW)"
+                  >
+                    <ShieldAlert className="w-3.5 h-3.5 text-red-400 stroke-[2.5]" />
+                    <span className="hidden sm:inline">Admin Panel</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setShowProfileModal(true)}
+                  title="Click to view & edit your profile, photo and password"
+                  className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-emerald-500/50 p-1.5 pr-3 rounded-xl transition cursor-pointer"
                 >
-                  {currentUser.name.charAt(0).toUpperCase()}
-                </span>
-                <div className="text-left hidden sm:block">
-                  <div className="text-xs font-black text-white leading-none">
-                    {currentUser.name}
+                  <UserAvatar
+                    name={currentUser.name}
+                    avatarColor={currentUser.avatarColor}
+                    photoUrl={currentUser.photoUrl}
+                    size="sm"
+                  />
+                  <div className="text-left hidden sm:block">
+                    <div className="text-xs font-black text-white leading-none flex items-center gap-1">
+                      <span>{currentUser.name}</span>
+                      {checkIsAdmin(currentUser) && (
+                        <span className="text-[9px] px-1 rounded bg-red-500/20 text-red-400 font-bold border border-red-500/30">
+                          ADMIN
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-emerald-400 font-medium leading-tight">
+                      {currentUser.role || 'Member'}
+                    </div>
                   </div>
-                  <div className="text-[10px] text-emerald-400 font-medium leading-tight">
-                    {currentUser.role || 'Member'}
-                  </div>
-                </div>
-              </button>
+                </button>
+              </div>
             ) : (
               <button
                 onClick={() => setShowOnboarding(true)}
@@ -412,6 +484,29 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* PWA INSTALL BANNER & PROMPTS (Triggered after 5 minutes) */}
+      <PWAInstallBanner />
+
+      {/* PASSWORD SETUP REMINDER BANNER FOR EXISTING USERS */}
+      {currentUser && !currentUser.password && (
+        <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/5 border-b border-amber-500/30 px-4 py-2.5">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2 text-amber-200">
+              <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>
+                <strong>Account Security:</strong> You haven't set up a login password for squad member <strong>{currentUser.name}</strong> yet.
+              </span>
+            </div>
+            <button
+              onClick={() => setShowProfileModal(true)}
+              className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition cursor-pointer shrink-0 shadow-sm"
+            >
+              Set Up Password Now
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* DASHBOARD STATS BAR */}
       <section className="bg-zinc-900/60 border-b border-zinc-800/80 py-3">
@@ -550,6 +645,15 @@ export default function App() {
             sessions={sessions}
             currentUser={currentUser}
             onSwitchUser={handleSwitchUser}
+            onOpenAdminSettings={() => {
+              setAdminInitialUser(null);
+              setShowAdminModal(true);
+            }}
+            onAdminEditUser={(user) => {
+              setAdminInitialUser(user);
+              setShowAdminModal(true);
+            }}
+            onAdminDeleteUser={handleAdminDeleteUser}
           />
         )}
       </main>
@@ -665,6 +769,36 @@ export default function App() {
         <DeploymentHelpModal
           isConnected={isConnected}
           onClose={() => setShowHelpModal(false)}
+        />
+      )}
+
+      {showAdminModal && currentUser && checkIsAdmin(currentUser) && (
+        <AdminSettingsModal
+          adminUser={currentUser}
+          allUsers={users}
+          allSessions={sessions}
+          allAvailability={availability}
+          initialEditingUser={adminInitialUser}
+          onUpdateUser={handleAdminUpdateUser}
+          onDeleteUser={handleAdminDeleteUser}
+          onDeleteSession={handleDeleteSession}
+          onDeleteAvailability={handleDeleteAvailability}
+          onClose={() => {
+            setShowAdminModal(false);
+            setAdminInitialUser(null);
+          }}
+        />
+      )}
+
+      {showProfileModal && currentUser && (
+        <ProfileSettingsModal
+          currentUser={currentUser}
+          onSave={handleSaveProfileUpdates}
+          onSwitchUser={() => {
+            setShowProfileModal(false);
+            handleSwitchUser();
+          }}
+          onClose={() => setShowProfileModal(false)}
         />
       )}
     </div>

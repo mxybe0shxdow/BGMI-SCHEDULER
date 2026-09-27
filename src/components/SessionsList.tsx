@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { SquadSession, SquadUser } from '../types';
 import { formatTime12h, getLocalDateString } from '../utils/dateUtils';
+import { checkIsAdmin } from '../lib/dbService';
+import { UserAvatar } from './UserAvatar';
 import {
   Gamepad2,
   Calendar,
@@ -244,12 +246,12 @@ export const SessionsList: React.FC<Props> = ({
                                 : 'bg-zinc-800/60 border-zinc-700/60 text-zinc-300'
                             }`}
                           >
-                            <span
-                              className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-white text-[11px] shrink-0"
-                              style={{ backgroundColor: p.userColor || '#10B981' }}
-                            >
-                              {p.userName.charAt(0).toUpperCase()}
-                            </span>
+                            <UserAvatar
+                              name={p.userName}
+                              avatarColor={p.userColor}
+                              photoUrl={p.userPhotoUrl}
+                              size="sm"
+                            />
                             <div className="min-w-0 truncate">
                               <span className="font-bold truncate">{p.userName}</span>
                               {isThisMe && (
@@ -319,13 +321,13 @@ export const SessionsList: React.FC<Props> = ({
                     </div>
                   )}
 
-                  {/* Host can cancel session */}
-                  {isHost && (
+                  {/* Host or Admin can cancel session */}
+                  {(isHost || checkIsAdmin(currentUser)) && (
                     <button
                       onClick={() => handleDeleteClick(session)}
                       disabled={isLoading}
                       className="p-2 rounded-xl bg-zinc-800/80 hover:bg-rose-950/60 border border-zinc-700 hover:border-rose-500 text-zinc-400 hover:text-rose-300 transition cursor-pointer"
-                      title="Cancel Session"
+                      title={isHost ? 'Cancel Session' : 'Admin Cancel Session'}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

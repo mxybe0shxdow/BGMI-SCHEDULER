@@ -8,8 +8,11 @@
         "id": { "type": "string" },
         "name": { "type": "string" },
         "avatarColor": { "type": "string" },
+        "photoUrl": { "type": "string" },
         "bgmiId": { "type": "string" },
         "role": { "type": "string" },
+        "isAdmin": { "type": "boolean" },
+        "password": { "type": "string" },
         "createdAt": { "type": "number" }
       },
       "required": ["id", "name", "avatarColor", "createdAt"]

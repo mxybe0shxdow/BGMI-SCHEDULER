@@ -8,6 +8,8 @@ import {
   query,
   orderBy,
   limit,
+  getDocs,
+  where,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import {
@@ -18,11 +20,57 @@ import {
   SessionPlayer,
 } from '../types';
 
+// Admin constants
+export const ADMIN_UID = '8999144585';
+export const ADMIN_NAME = 'SHXDOW';
+
+/**
+ * Clean data before sending to Firestore to avoid:
+ * "Unsupported field value: undefined" errors that prevent saving when optional fields are empty
+ */
+export function cleanFirestoreData<T extends Record<string, any>>(obj: T): T {
+  const result: any = Array.isArray(obj) ? [] : {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val === undefined) {
+      continue; // completely strip undefined properties
+    } else if (val !== null && typeof val === 'object' && !(val instanceof Date)) {
+      result[key] = cleanFirestoreData(val);
+    } else {
+      result[key] = val;
+    }
+  }
+  return result;
+}
+
 // Collection references
 const USERS_COL = 'users';
 const AVAILABILITY_COL = 'availability';
 const SESSIONS_COL = 'sessions';
 const ACTIVITY_COL = 'activity_log';
+
+// Default Admin User specification
+export const DEFAULT_ADMIN: SquadUser = {
+  id: ADMIN_UID,
+  name: ADMIN_NAME,
+  avatarColor: '#EF4444',
+  role: 'Admin',
+  bgmiId: '8999144585',
+  isAdmin: true,
+  createdAt: 1727395200000,
+};
+
+// Check if user has admin privileges
+export function checkIsAdmin(user: SquadUser | null | undefined): boolean {
+  if (!user) return false;
+  return (
+    user.isAdmin === true ||
+    user.id === ADMIN_UID ||
+    user.name?.toUpperCase() === ADMIN_NAME.toUpperCase() ||
+    user.bgmiId === ADMIN_UID ||
+    user.role === 'Admin'
+  );
+}
 
 // --- USERS ---
 
@@ -30,11 +78,29 @@ export function subscribeToUsers(onUpdate: (users: SquadUser[]) => void) {
   const q = query(collection(db, USERS_COL), orderBy('createdAt', 'asc'));
   return onSnapshot(
     q,
-    (snapshot) => {
+    async (snapshot) => {
       const users: SquadUser[] = [];
+      let foundAdmin = false;
+
       snapshot.forEach((doc) => {
-        users.push({ id: doc.id, ...doc.data() } as SquadUser);
+        const u = { id: doc.id, ...doc.data() } as SquadUser;
+        if (checkIsAdmin(u)) {
+          u.isAdmin = true;
+          foundAdmin = true;
+        }
+        users.push(u);
       });
+
+      // If SHXDOW does not exist yet in Firestore, automatically create the admin user
+      if (!foundAdmin && snapshot.docs.length >= 0) {
+        try {
+          await createOrUpdateUser(DEFAULT_ADMIN);
+          // Snapshot listener will receive the update automatically
+        } catch (err) {
+          console.error('Error auto-seeding admin user:', err);
+        }
+      }
+
       onUpdate(users);
     },
     (err) => {
@@ -44,9 +110,65 @@ export function subscribeToUsers(onUpdate: (users: SquadUser[]) => void) {
 }
 
 export async function createOrUpdateUser(user: SquadUser): Promise<void> {
-  await setDoc(doc(db, USERS_COL, user.id), {
+  const isAdm = checkIsAdmin(user);
+  const sanitized = cleanFirestoreData({
     ...user,
-  }, { merge: true });
+    isAdmin: isAdm,
+    role: isAdm ? 'Admin' : (user.role || 'Assault'),
+  });
+
+  await setDoc(doc(db, USERS_COL, user.id), sanitized, { merge: true });
+}
+
+export async function adminUpdateUser(
+  targetUserId: string,
+  updates: Partial<SquadUser>,
+  adminUser: SquadUser
+): Promise<void> {
+  const docRef = doc(db, USERS_COL, targetUserId);
+  const sanitized = cleanFirestoreData({
+    ...updates,
+  });
+
+  await updateDoc(docRef, sanitized);
+
+  await logActivity({
+    userId: adminUser.id,
+    userName: adminUser.name,
+    userColor: adminUser.avatarColor,
+    action: 'admin_update_user',
+    description: `Admin ${adminUser.name} updated profile details for user ID ${targetUserId}`,
+    metadata: { targetUserId, updates: Object.keys(updates) },
+  });
+}
+
+export async function adminDeleteUser(
+  targetUser: SquadUser,
+  adminUser: SquadUser
+): Promise<void> {
+  // 1. Delete user doc
+  await deleteDoc(doc(db, USERS_COL, targetUser.id));
+
+  // 2. Clean up any availability by this user
+  try {
+    const availQ = query(collection(db, AVAILABILITY_COL), where('userId', '==', targetUser.id));
+    const availSnap = await getDocs(availQ);
+    for (const d of availSnap.docs) {
+      await deleteDoc(d.ref);
+    }
+  } catch (e) {
+    console.warn('Non-fatal: Error deleting user availability:', e);
+  }
+
+  // 3. Log action
+  await logActivity({
+    userId: adminUser.id,
+    userName: adminUser.name,
+    userColor: adminUser.avatarColor,
+    action: 'admin_delete_user',
+    description: `Admin ${adminUser.name} removed squad member "${targetUser.name}" (${targetUser.id})`,
+    metadata: { deletedUserId: targetUser.id, deletedUserName: targetUser.name },
+  });
 }
 
 // --- AVAILABILITY ---
@@ -74,12 +196,12 @@ export async function addAvailability(
 ): Promise<string> {
   const docRef = doc(collection(db, AVAILABILITY_COL));
   const now = Date.now();
-  const newEntry: AvailabilityEntry = {
+  const newEntry: AvailabilityEntry = cleanFirestoreData({
     ...entry,
     id: docRef.id,
     createdAt: now,
     updatedAt: now,
-  };
+  });
 
   await setDoc(docRef, newEntry);
 
@@ -105,10 +227,12 @@ export async function updateAvailability(
 ): Promise<void> {
   const docRef = doc(db, AVAILABILITY_COL, id);
   const now = Date.now();
-  await updateDoc(docRef, {
+  const sanitized = cleanFirestoreData({
     ...updates,
     updatedAt: now,
   });
+
+  await updateDoc(docRef, sanitized);
 
   // Log activity
   const desc = oldSummary
@@ -168,11 +292,11 @@ export async function createSession(
 ): Promise<string> {
   const docRef = doc(collection(db, SESSIONS_COL));
   const now = Date.now();
-  const newSession: SquadSession = {
+  const newSession: SquadSession = cleanFirestoreData({
     ...sessionData,
     id: docRef.id,
     createdAt: now,
-  };
+  });
 
   await setDoc(docRef, newSession);
 
@@ -196,13 +320,14 @@ export async function joinSession(
   const alreadyJoined = session.players.some((p) => p.userId === user.id);
   if (alreadyJoined) return;
 
-  const newPlayer: SessionPlayer = {
+  const newPlayer: SessionPlayer = cleanFirestoreData({
     userId: user.id,
     userName: user.name,
     userColor: user.avatarColor,
+    userPhotoUrl: user.photoUrl,
     role: user.role,
     joinedAt: Date.now(),
-  };
+  });
 
   const updatedPlayers = [...session.players, newPlayer];
   await updateDoc(doc(db, SESSIONS_COL, session.id), {
@@ -286,12 +411,14 @@ export async function logActivity(
 ): Promise<void> {
   try {
     const docRef = doc(collection(db, ACTIVITY_COL));
-    await setDoc(docRef, {
+    const cleanEntry = cleanFirestoreData({
       ...entry,
       id: docRef.id,
       createdAt: Date.now(),
     });
+    await setDoc(docRef, cleanEntry);
   } catch (err) {
     console.error('Failed to write activity log:', err);
   }
 }
+

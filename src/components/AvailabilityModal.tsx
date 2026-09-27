@@ -97,10 +97,11 @@ export const AvailabilityModal: React.FC<Props> = ({
             startTime,
             endTime,
             status,
-            preferredMaps: preferredMaps.length > 0 ? preferredMaps : undefined,
-            note: note.trim() || undefined,
+            preferredMaps: preferredMaps.length > 0 ? preferredMaps : [],
+            note: note.trim(),
             userName: currentUser.name,
             userColor: currentUser.avatarColor,
+            userPhotoUrl: currentUser.photoUrl || '',
           },
           oldSummary
         );
@@ -109,12 +110,13 @@ export const AvailabilityModal: React.FC<Props> = ({
           userId: currentUser.id,
           userName: currentUser.name,
           userColor: currentUser.avatarColor,
+          userPhotoUrl: currentUser.photoUrl || '',
           date,
           startTime,
           endTime,
           status,
-          preferredMaps: preferredMaps.length > 0 ? preferredMaps : undefined,
-          note: note.trim() || undefined,
+          preferredMaps: preferredMaps.length > 0 ? preferredMaps : [],
+          note: note.trim(),
         });
       }
       onClose();

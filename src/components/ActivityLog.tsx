@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityLogEntry } from '../types';
 import { timeAgo } from '../utils/dateUtils';
+import { UserAvatar } from './UserAvatar';
 import {
   History,
   PlusCircle,
@@ -10,6 +11,8 @@ import {
   UserCheck,
   UserX,
   Activity,
+  ShieldAlert,
+  UserMinus,
 } from 'lucide-react';
 
 interface Props {
@@ -61,6 +64,18 @@ export const ActivityLog: React.FC<Props> = ({ activities }) => {
           color: 'bg-rose-500/10 border-rose-500/30 text-rose-300',
           label: 'Session Cancelled',
         };
+      case 'admin_update_user':
+        return {
+          icon: <ShieldAlert className="w-4 h-4 text-red-400" />,
+          color: 'bg-red-500/10 border-red-500/30 text-red-300',
+          label: 'Admin: Member Updated',
+        };
+      case 'admin_delete_user':
+        return {
+          icon: <UserMinus className="w-4 h-4 text-red-400" />,
+          color: 'bg-red-500/10 border-red-500/30 text-red-300',
+          label: 'Admin: Member Removed',
+        };
       default:
         return {
           icon: <Activity className="w-4 h-4 text-zinc-400" />,
@@ -103,12 +118,11 @@ export const ActivityLog: React.FC<Props> = ({ activities }) => {
                   <div className="bg-zinc-800/40 hover:bg-zinc-800/70 border border-zinc-800 rounded-xl p-3.5 transition">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1.5">
                       <div className="flex items-center gap-2">
-                        <span
-                          className="w-5 h-5 rounded-full flex items-center justify-center font-bold text-white text-[10px] shrink-0"
-                          style={{ backgroundColor: item.userColor || '#10B981' }}
-                        >
-                          {item.userName.charAt(0).toUpperCase()}
-                        </span>
+                        <UserAvatar
+                          name={item.userName}
+                          avatarColor={item.userColor}
+                          size="xs"
+                        />
                         <span className="text-xs font-bold text-white">{item.userName}</span>
                         <span
                           className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badge.color}`}

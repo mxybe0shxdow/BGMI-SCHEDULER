@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { AvailabilityEntry, SquadTimeSlotAnalysis, SquadUser } from '../types';
 import { formatTime12h, getLocalDateString } from '../utils/dateUtils';
+import { UserAvatar } from './UserAvatar';
 import { Flame, Users, Calendar, ArrowRight, Gamepad2, Filter, Sparkles, CheckCircle2 } from 'lucide-react';
 
 interface Props {
@@ -58,8 +59,8 @@ export const SquadFinder: React.FC<Props> = ({
       const dayEntries = availability.filter((a) => a.date === date);
 
       slots.forEach((slotTime) => {
-        const availableUsers: { id: string; name: string; color: string; note?: string; preferredMaps?: string[] }[] = [];
-        const maybeUsers: { id: string; name: string; color: string; note?: string; preferredMaps?: string[] }[] = [];
+        const availableUsers: { id: string; name: string; color: string; photoUrl?: string; note?: string; preferredMaps?: string[] }[] = [];
+        const maybeUsers: { id: string; name: string; color: string; photoUrl?: string; note?: string; preferredMaps?: string[] }[] = [];
         const busyUsers: { id: string; name: string; color: string }[] = [];
 
           // Check each squad member
@@ -81,9 +82,9 @@ export const SquadFinder: React.FC<Props> = ({
             }
 
             if (userStatus === 'available') {
-              availableUsers.push({ id: u.id, name: u.name, color: u.avatarColor, note: userNote, preferredMaps: userPreferredMaps });
+              availableUsers.push({ id: u.id, name: u.name, color: u.avatarColor, photoUrl: u.photoUrl, note: userNote, preferredMaps: userPreferredMaps });
             } else if (userStatus === 'maybe') {
-              maybeUsers.push({ id: u.id, name: u.name, color: u.avatarColor, note: userNote, preferredMaps: userPreferredMaps });
+              maybeUsers.push({ id: u.id, name: u.name, color: u.avatarColor, photoUrl: u.photoUrl, note: userNote, preferredMaps: userPreferredMaps });
             } else if (userStatus === 'busy') {
               busyUsers.push({ id: u.id, name: u.name, color: u.avatarColor });
             }
@@ -293,12 +294,12 @@ export const SquadFinder: React.FC<Props> = ({
                         title={u.note ? `Note: ${u.note}` : undefined}
                       >
                         <div className="flex items-center gap-1.5">
-                          <span
-                            className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                            style={{ backgroundColor: u.color || '#10B981' }}
-                          >
-                            {u.name.charAt(0).toUpperCase()}
-                          </span>
+                          <UserAvatar
+                            name={u.name}
+                            avatarColor={u.color}
+                            photoUrl={u.photoUrl}
+                            size="xs"
+                          />
                           <span className="font-semibold">{u.name}</span>
                           {u.note && <span className="text-[10px] text-zinc-400">💬</span>}
                         </div>
@@ -317,12 +318,12 @@ export const SquadFinder: React.FC<Props> = ({
                         title={u.note ? `Note: ${u.note}` : undefined}
                       >
                         <div className="flex items-center gap-1.5">
-                          <span
-                            className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                            style={{ backgroundColor: u.color || '#F59E0B' }}
-                          >
-                            {u.name.charAt(0).toUpperCase()}
-                          </span>
+                          <UserAvatar
+                            name={u.name}
+                            avatarColor={u.color}
+                            photoUrl={u.photoUrl}
+                            size="xs"
+                          />
                           <span className="font-semibold">{u.name} (maybe)</span>
                         </div>
                         {u.preferredMaps && u.preferredMaps.length > 0 && (

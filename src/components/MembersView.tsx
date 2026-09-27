@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { AvailabilityEntry, SquadSession, SquadUser } from '../types';
 import { formatTime12h, getLocalDateString } from '../utils/dateUtils';
-import { Users, Shield, Plus, Calendar, Clock, Crosshair, Award } from 'lucide-react';
+import { checkIsAdmin } from '../lib/dbService';
+import { UserAvatar } from './UserAvatar';
+import { Users, Shield, Plus, Calendar, Clock, Crosshair, Award, ShieldAlert, Edit2, Trash2 } from 'lucide-react';
 
 interface Props {
   users: SquadUser[];
@@ -9,7 +11,9 @@ interface Props {
   sessions: SquadSession[];
   currentUser: SquadUser | null;
   onSwitchUser: () => void;
-  onAddAvailabilityForUser?: (user: SquadUser) => void;
+  onOpenAdminSettings?: () => void;
+  onAdminEditUser?: (user: SquadUser) => void;
+  onAdminDeleteUser?: (user: SquadUser) => void;
 }
 
 export const MembersView: React.FC<Props> = ({
@@ -18,6 +22,9 @@ export const MembersView: React.FC<Props> = ({
   sessions,
   currentUser,
   onSwitchUser,
+  onOpenAdminSettings,
+  onAdminEditUser,
+  onAdminDeleteUser,
 }) => {
   const [filterRole, setFilterRole] = useState<string>('all');
   const todayStr = getLocalDateString(new Date());
@@ -41,7 +48,7 @@ export const MembersView: React.FC<Props> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex bg-zinc-800 p-1 rounded-xl border border-zinc-700/60 text-xs">
             {['all', 'Assault', 'Sniper', 'IGL', 'Support'].map((r) => (
               <button
@@ -57,6 +64,16 @@ export const MembersView: React.FC<Props> = ({
               </button>
             ))}
           </div>
+
+          {checkIsAdmin(currentUser) && onOpenAdminSettings && (
+            <button
+              onClick={onOpenAdminSettings}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/40 text-xs font-bold transition cursor-pointer"
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              Admin Controls
+            </button>
+          )}
 
           <button
             onClick={onSwitchUser}
@@ -81,24 +98,31 @@ export const MembersView: React.FC<Props> = ({
             <div
               key={user.id}
               className={`rounded-2xl border p-5 shadow-xl transition-all ${
-                isMe
+                user.isAdmin
+                  ? 'bg-gradient-to-br from-zinc-900 to-red-950/20 border-red-500/50 ring-1 ring-red-500/20'
+                  : isMe
                   ? 'bg-gradient-to-br from-zinc-900 to-emerald-950/20 border-emerald-500/60 ring-1 ring-emerald-500/20'
                   : 'bg-zinc-900/90 border-zinc-800 hover:border-zinc-700'
               }`}
             >
               <div className="flex items-start justify-between gap-3 mb-4">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-white text-lg shadow-lg shrink-0"
-                    style={{ backgroundColor: user.avatarColor || '#10B981' }}
-                  >
-                    {user.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <h3 className="text-base font-black text-white flex items-center gap-1.5">
-                      <span>{user.name}</span>
-                      {isMe && (
-                        <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold">
+                <div className="flex items-center gap-3 min-w-0">
+                  <UserAvatar
+                    name={user.name}
+                    avatarColor={user.avatarColor}
+                    photoUrl={user.photoUrl}
+                    size="xl"
+                  />
+                  <div className="min-w-0">
+                    <h3 className="text-base font-black text-white flex items-center gap-1.5 truncate">
+                      <span className="truncate">{user.name}</span>
+                      {user.isAdmin && (
+                        <span className="text-[10px] bg-red-500/20 text-red-400 border border-red-500/40 px-2 py-0.5 rounded-full font-bold shrink-0">
+                          ADMIN
+                        </span>
+                      )}
+                      {isMe && !user.isAdmin && (
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold shrink-0">
                           You
                         </span>
                       )}
@@ -111,16 +135,40 @@ export const MembersView: React.FC<Props> = ({
                   </div>
                 </div>
 
-                {user.bgmiId && (
-                  <div className="text-right">
-                    <span className="text-[10px] uppercase font-bold text-zinc-500 block">
-                      BGMI ID
-                    </span>
-                    <span className="text-xs font-mono text-zinc-300 bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700">
-                      {user.bgmiId}
-                    </span>
-                  </div>
-                )}
+                <div className="text-right shrink-0">
+                  {user.bgmiId && (
+                    <div className="mb-1">
+                      <span className="text-[10px] uppercase font-bold text-zinc-500 block">
+                        BGMI ID
+                      </span>
+                      <span className="text-xs font-mono text-zinc-300 bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700">
+                        {user.bgmiId}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Admin Direct Action triggers on Member Cards */}
+                  {checkIsAdmin(currentUser) && onAdminEditUser && (
+                    <div className="flex items-center gap-1 justify-end mt-1">
+                      <button
+                        onClick={() => onAdminEditUser(user)}
+                        className="p-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition cursor-pointer"
+                        title="Edit User Data"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      {user.id !== currentUser?.id && onAdminDeleteUser && (
+                        <button
+                          onClick={() => onAdminDeleteUser(user)}
+                          className="p-1 rounded bg-zinc-800 hover:bg-red-950 text-zinc-400 hover:text-red-400 transition cursor-pointer"
+                          title="Delete User"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Stats for this squad member */}

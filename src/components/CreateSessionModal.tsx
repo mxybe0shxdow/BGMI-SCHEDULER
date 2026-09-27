@@ -86,7 +86,8 @@ export const CreateSessionModal: React.FC<Props> = ({
           userId: pId,
           userName: u ? u.name : 'Teammate',
           userColor: u?.avatarColor || '#10B981',
-          role: u?.role,
+          userPhotoUrl: u?.photoUrl || '',
+          role: u?.role || 'Assault',
           joinedAt: Date.now(),
         };
       });
@@ -101,7 +102,7 @@ export const CreateSessionModal: React.FC<Props> = ({
         mode,
         map,
         maxPlayers,
-        notes: notes.trim() || undefined,
+        notes: notes.trim(),
         players,
       });
 

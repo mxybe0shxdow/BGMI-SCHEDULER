@@ -17,7 +17,10 @@ import {
   Sparkles,
   Info,
   MapPin,
+  ShieldAlert,
 } from 'lucide-react';
+import { UserAvatar } from './UserAvatar';
+import { checkIsAdmin } from '../lib/dbService';
 
 interface Props {
   currentUser: SquadUser | null;
@@ -276,15 +279,20 @@ export const ScheduleView: React.FC<Props> = ({
                     {/* User Profile Header Column */}
                     <td className="py-3 px-4 sticky left-0 bg-zinc-900/95 backdrop-blur z-10 border-r border-zinc-800/60">
                       <div className="flex items-center gap-2.5">
-                        <div
-                          className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black text-white shrink-0 shadow-md"
-                          style={{ backgroundColor: u.avatarColor || '#10B981' }}
-                        >
-                          {u.name.charAt(0).toUpperCase()}
-                        </div>
+                        <UserAvatar
+                          name={u.name}
+                          avatarColor={u.avatarColor}
+                          photoUrl={u.photoUrl}
+                          size="md"
+                        />
                         <div className="min-w-0">
                           <div className="text-sm font-bold text-white truncate flex items-center gap-1.5">
                             <span className="truncate">{u.name}</span>
+                            {u.isAdmin && (
+                              <span className="text-[9px] px-1 rounded bg-red-500/20 text-red-400 font-bold border border-red-500/30 shrink-0">
+                                ADMIN
+                              </span>
+                            )}
                             {isCurrentUser && (
                               <span className="text-[10px] px-1 rounded bg-emerald-500/20 text-emerald-400 font-semibold shrink-0">
                                 You
@@ -302,6 +310,7 @@ export const ScheduleView: React.FC<Props> = ({
                     {weekDates.map((date) => {
                       const dStr = getLocalDateString(date);
                       const userEntries = entriesByDateAndUser[dStr]?.[u.id] || [];
+                      const canAddForThisUser = isCurrentUser || checkIsAdmin(currentUser);
 
                       return (
                         <td
@@ -309,8 +318,8 @@ export const ScheduleView: React.FC<Props> = ({
                           className="py-2 px-2 border-l border-zinc-800/60 align-top text-center"
                         >
                           {userEntries.length === 0 ? (
-                            // Empty slot: if it's the current user, quick click to add
-                            isCurrentUser ? (
+                            // Empty slot: if it's the current user or admin, quick click to add
+                            canAddForThisUser ? (
                               <button
                                 onClick={() => onAddClick(dStr)}
                                 title={`Add availability for ${dStr}`}
@@ -329,7 +338,7 @@ export const ScheduleView: React.FC<Props> = ({
                           ) : (
                             <div className="space-y-1.5">
                               {userEntries.map((entry) => {
-                                const canEdit = isCurrentUser;
+                                const canEdit = isCurrentUser || checkIsAdmin(currentUser);
                                 const isAvailable = entry.status === 'available';
                                 const isMaybe = entry.status === 'maybe';
                                 const isBusy = entry.status === 'busy';
@@ -481,15 +490,16 @@ export const ScheduleView: React.FC<Props> = ({
                 ) : (
                   dayEntries.map((entry) => {
                     const isCurrentUser = currentUser?.id === entry.userId;
+                    const canEdit = isCurrentUser || checkIsAdmin(currentUser);
                     const isAvailable = entry.status === 'available';
                     const isMaybe = entry.status === 'maybe';
 
                     return (
                       <div
                         key={entry.id}
-                        onClick={() => isCurrentUser && onEditClick(entry)}
+                        onClick={() => canEdit && onEditClick(entry)}
                         className={`p-3 rounded-xl border flex items-center justify-between text-xs transition ${
-                          isCurrentUser ? 'cursor-pointer hover:border-emerald-400' : ''
+                          canEdit ? 'cursor-pointer hover:border-emerald-400' : ''
                         } ${
                           isAvailable
                             ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-100'
@@ -499,18 +509,23 @@ export const ScheduleView: React.FC<Props> = ({
                         }`}
                       >
                         <div className="flex items-center gap-2.5">
-                          <span
-                            className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-white text-xs shrink-0"
-                            style={{ backgroundColor: entry.userColor || '#10B981' }}
-                          >
-                            {entry.userName.charAt(0).toUpperCase()}
-                          </span>
+                          <UserAvatar
+                            name={entry.userName}
+                            avatarColor={entry.userColor}
+                            photoUrl={entry.userPhotoUrl}
+                            size="sm"
+                          />
                           <div>
                             <div className="font-bold flex items-center gap-1.5">
                               <span>{entry.userName}</span>
                               {isCurrentUser && (
                                 <span className="text-[10px] text-emerald-400 bg-emerald-500/20 px-1 rounded">
                                   You
+                                </span>
+                              )}
+                              {!isCurrentUser && checkIsAdmin(currentUser) && (
+                                <span className="text-[9px] text-red-400 bg-red-500/20 px-1 rounded border border-red-500/30">
+                                  Manage
                                 </span>
                               )}
                             </div>
